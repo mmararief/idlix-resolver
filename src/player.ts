@@ -1,7 +1,9 @@
 import http from 'node:http';
 import { spawn } from 'node:child_process';
 import open from 'open';
+import { Impit } from 'impit';
 import { ResolvedStream, SubtitleTrack } from './types.js';
+import { rewriteM3u8Urls } from './parser.js';
 
 export interface AvailablePlayer {
   id: 'ffplay' | 'mpv' | 'vlc' | 'browser';
@@ -65,15 +67,29 @@ export async function detectPlayers(): Promise<AvailablePlayer[]> {
   ];
 }
 
-export function startLocalPlayerServer(stream: ResolvedStream): Promise<{ port: number; close: () => void }> {
+export function startLocalPlayerServer(stream: ResolvedStream): Promise<{ port: number; localM3u8Url: string; close: () => void }> {
   return new Promise((resolve, reject) => {
-    const server = http.createServer((req, res) => {
-      const url = new URL(req.url || '/', `http://${req.headers.host}`);
+    const cdn = new Impit({ browser: 'chrome' });
 
-      if (url.pathname === '/') {
-        // Serve beautiful dark HTML5 player
-        const defaultSub = stream.subtitles.find(s => s.isDefault) || stream.subtitles[0];
-        const html = `<!DOCTYPE html>
+    const server = http.createServer(async (req, res) => {
+      try {
+        const url = new URL(req.url || '/', `http://${req.headers.host}`);
+
+        // CORS headers
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+        res.setHeader('Access-Control-Allow-Headers', '*');
+
+        if (req.method === 'OPTIONS') {
+          res.writeHead(204);
+          res.end();
+          return;
+        }
+
+        // 1. Web Player Homepage
+        if (url.pathname === '/') {
+          const defaultSub = stream.subtitles.find(s => s.isDefault) || stream.subtitles[0];
+          const html = `<!DOCTYPE html>
 <html lang="id">
 <head>
   <meta charset="utf-8">
@@ -98,7 +114,7 @@ export function startLocalPlayerServer(stream: ResolvedStream): Promise<{ port: 
   </header>
   <div class="player-container">
     <video id="video" controls autoplay playsinline crossorigin="anonymous">
-      ${defaultSub ? `<track label="${escapeHtml(defaultSub.label)}" kind="subtitles" srclang="${escapeHtml(defaultSub.lang)}" src="${escapeHtml(defaultSub.path)}" default>` : ''}
+      ${defaultSub ? `<track label="${escapeHtml(defaultSub.label)}" kind="subtitles" srclang="${escapeHtml(defaultSub.lang)}" src="/sub" default>` : ''}
       ${stream.subtitles
         .filter(s => s !== defaultSub)
         .map(s => `<track label="${escapeHtml(s.label)}" kind="subtitles" srclang="${escapeHtml(s.lang)}" src="${escapeHtml(s.path)}">`)
@@ -107,17 +123,16 @@ export function startLocalPlayerServer(stream: ResolvedStream): Promise<{ port: 
   </div>
   <script>
     const video = document.getElementById('video');
-    const streamUrl = '${stream.playlistUrl}';
+    const streamUrl = '/master.m3u8';
     if (Hls.isSupported()) {
       const hls = new Hls({
-        xhrSetup: function(xhr, url) {
-          xhr.withCredentials = false;
-        }
+        enableWorker: true,
+        lowLatencyMode: false,
       });
       hls.loadSource(streamUrl);
       hls.attachMedia(video);
       hls.on(Hls.Events.MANIFEST_PARSED, function() {
-        video.play().catch(e => console.log('Autoplay policy caught:', e));
+        video.play().catch(e => console.log('Autoplay caught:', e));
       });
     } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = streamUrl;
@@ -128,13 +143,110 @@ export function startLocalPlayerServer(stream: ResolvedStream): Promise<{ port: 
   </script>
 </body>
 </html>`;
-        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
-        res.end(html);
-        return;
-      }
+          res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+          res.end(html);
+          return;
+        }
 
-      res.writeHead(404);
-      res.end('Not Found');
+        // 2. Master Playlist Relay
+        if (url.pathname === '/master.m3u8') {
+          const upstreamRes = await cdn.fetch(stream.playlistUrl, {
+            headers: {
+              'User-Agent': stream.headers['User-Agent'],
+              'Origin': 'https://z2.idlixku.com',
+              'Referer': 'https://majorplay.net/',
+            },
+          });
+          const rawM3u8 = await upstreamRes.text();
+          const rewritten = rewriteM3u8Urls(rawM3u8, stream.playlistUrl);
+
+          // Route sub-playlists through local proxy so auth token is preserved
+          const host = req.headers.host;
+          const proxiedM3u8 = rewritten.replace(/https?:\/\/[^\s\n"']+/g, matchedUrl => {
+            return `http://${host}/relay?url=${encodeURIComponent(matchedUrl)}`;
+          });
+
+          res.writeHead(200, {
+            'Content-Type': 'application/vnd.apple.mpegurl',
+            'Cache-Control': 'no-cache',
+          });
+          res.end(proxiedM3u8);
+          return;
+        }
+
+        // 3. Sub-playlist & Video Chunk Relay
+        if (url.pathname === '/relay') {
+          const targetUrl = url.searchParams.get('url');
+          if (!targetUrl) {
+            res.writeHead(400);
+            res.end('Missing url');
+            return;
+          }
+
+          const targetRes = await cdn.fetch(targetUrl, {
+            headers: {
+              'User-Agent': stream.headers['User-Agent'],
+              'Origin': 'https://z2.idlixku.com',
+              'Referer': 'https://majorplay.net/',
+            },
+          });
+
+          // Check if response is M3U8 text or binary media segment
+          const contentType = targetRes.headers.get('content-type') || '';
+          if (contentType.includes('mpegurl') || targetUrl.includes('.json') || targetUrl.includes('.m3u8')) {
+            const rawBody = await targetRes.text();
+            if (rawBody.includes('#EXTM3U')) {
+              const host = req.headers.host;
+              const rewrittenSub = rewriteM3u8Urls(rawBody, targetUrl).replace(/https?:\/\/[^\s\n"']+/g, mUrl => {
+                return `http://${host}/relay?url=${encodeURIComponent(mUrl)}`;
+              });
+
+              res.writeHead(200, {
+                'Content-Type': 'application/vnd.apple.mpegurl',
+                'Cache-Control': 'no-cache',
+              });
+              res.end(rewrittenSub);
+              return;
+            }
+          }
+
+          // Binary TS/fMP4 video chunk
+          const buffer = Buffer.from(await targetRes.arrayBuffer());
+          res.writeHead(targetRes.status, {
+            'Content-Type': contentType || 'video/mp2t',
+            'Content-Length': buffer.length,
+          });
+          res.end(buffer);
+          return;
+        }
+
+        // 4. Subtitle Relay
+        if (url.pathname === '/sub') {
+          const defaultSub = stream.subtitles.find(s => s.isDefault) || stream.subtitles[0];
+          if (!defaultSub) {
+            res.writeHead(404);
+            res.end();
+            return;
+          }
+
+          const subRes = await cdn.fetch(defaultSub.path, {
+            headers: {
+              'User-Agent': stream.headers['User-Agent'],
+              'Referer': 'https://majorplay.net/',
+            },
+          });
+          const subText = await subRes.text();
+          res.writeHead(200, { 'Content-Type': 'text/vtt; charset=utf-8' });
+          res.end(subText);
+          return;
+        }
+
+        res.writeHead(404);
+        res.end('Not Found');
+      } catch (err: any) {
+        res.writeHead(500);
+        res.end(err?.message || 'Proxy Error');
+      }
     });
 
     server.listen(0, '127.0.0.1', () => {
@@ -142,6 +254,7 @@ export function startLocalPlayerServer(stream: ResolvedStream): Promise<{ port: 
       const port = typeof address === 'object' && address ? address.port : 4567;
       resolve({
         port,
+        localM3u8Url: `http://127.0.0.1:${port}/master.m3u8`,
         close: () => server.close(),
       });
     });
@@ -155,22 +268,20 @@ export async function launchPlayer(
   stream: ResolvedStream,
   serverPort: number
 ): Promise<void> {
-  const defaultSub = stream.subtitles.find(s => s.isDefault) || stream.subtitles[0];
+  const localUrl = `http://127.0.0.1:${serverPort}`;
+  const localM3u8 = `${localUrl}/master.m3u8`;
 
   if (playerType === 'browser') {
-    await open(`http://127.0.0.1:${serverPort}`);
+    await open(localUrl);
     return;
   }
 
   if (playerType === 'ffplay') {
-    const headersStr = `Referer: https://majorplay.net/\r\nUser-Agent: ${stream.headers['User-Agent']}\r\nOrigin: https://z2.idlixku.com\r\n`;
     const args = [
-      '-headers',
-      headersStr,
       '-window_title',
       `IDLIX: ${stream.title}`,
       '-autoexit',
-      stream.playlistUrl,
+      localM3u8,
     ];
 
     const child = spawn('ffplay', args, {
@@ -183,13 +294,10 @@ export async function launchPlayer(
 
   if (playerType === 'mpv') {
     const args = [
-      `--http-header-fields=Referer: https://majorplay.net/,Origin: https://z2.idlixku.com,User-Agent: ${stream.headers['User-Agent']}`,
       `--title=IDLIX: ${stream.title}`,
-      stream.playlistUrl,
+      `--sub-file=${localUrl}/sub`,
+      localM3u8,
     ];
-    if (defaultSub?.path) {
-      args.push(`--sub-file=${defaultSub.path}`);
-    }
 
     const child = spawn('mpv', args, {
       stdio: 'inherit',
@@ -201,13 +309,10 @@ export async function launchPlayer(
 
   if (playerType === 'vlc') {
     const args = [
-      `--http-referrer=https://majorplay.net/`,
       `--meta-title=IDLIX: ${stream.title}`,
-      stream.playlistUrl,
+      `--sub-source=${localUrl}/sub`,
+      localM3u8,
     ];
-    if (defaultSub?.path) {
-      args.push(`--sub-source=${defaultSub.path}`);
-    }
 
     const child = spawn('vlc', args, {
       stdio: 'inherit',
