@@ -193,4 +193,4 @@ interface SubtitleTrack {
 
 ## 📄 License
 
-MIT © [Arief Muhammad Ammar](https://github.com/ariefmuhammadammar)
+MIT © [Muhammad Ammar Arief](https://github.com/mmararief)

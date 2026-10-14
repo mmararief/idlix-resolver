@@ -31,8 +31,16 @@
     "majorplay",
     "video-scraper"
   ],
-  "author": "Arief Muhammad Ammar",
+  "author": "Muhammad Ammar Arief",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mmararief/idlix-resolver.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mmararief/idlix-resolver/issues"
+  },
+  "homepage": "https://github.com/mmararief/idlix-resolver#readme",
   "dependencies": {
     "@clack/prompts": "^1.8.1",
     "impit": "^0.8.0",
