@@ -1,0 +1,38 @@
+{
+  "name": "idlix-resolver",
+  "version": "1.0.0",
+  "description": "High-performance stream and Indonesian subtitle extractor for IDLIX (z2.idlixku.com) powered by Pentos protocol automation and TLS browser impersonation.",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "idlix-resolver": "./dist/cli.js"
+  },
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "test": "tsx example.ts",
+    "cli": "tsx src/cli.ts"
+  },
+  "keywords": [
+    "idlix",
+    "stream-extractor",
+    "m3u8-resolver",
+    "indonesian-subtitles",
+    "hls",
+    "pentos",
+    "majorplay",
+    "video-scraper"
+  ],
+  "author": "Arief Muhammad Ammar",
+  "license": "MIT",
+  "dependencies": {
+    "impit": "^0.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.5.0"
+  }
+}

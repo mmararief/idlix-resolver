@@ -1,0 +1,133 @@
+# 🎬 Idlix-Resolver
+
+> High-performance stream and Indonesian subtitle extractor for **IDLIX** (`z2.idlixku.com`) powered by Pentos protocol automation and TLS browser impersonation.
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/badge/node-%3E%3D18.0.0-brightgreen.svg)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-Ready-blue.svg)](https://www.typescriptlang.org/)
+
+---
+
+## 🌟 Features
+
+- ⚡ **Full Pentos Protocol Support**: Automatically negotiates Gate Tokens, Countdown Gates, Session Claims, and Majorplay CDN redemption.
+- 🛡️ **Bypass Cloudflare Challenges**: Powered by [`impit`](https://github.com/cloudflare/impit) with Chrome JA3/TLS fingerprinting.
+- 🇮🇩 **Indonesian Subtitles Built-in**: Directly extracts synchronized `.vtt` subtitles in Bahasa Indonesia and other available languages.
+- 📺 **HLS Master Playlist Extraction**: Resolves adaptive bitrate HLS streams (`.m3u8` / multi-quality 1080p/720p).
+- 🔄 **Support for Movies & TV Series**: Resolves streams by TMDB ID, slug, or content UUID.
+- 🛠️ **CLI & Programmatic API**: Use as a command-line utility or import as an npm package in your Node.js/TypeScript backend.
+
+---
+
+## 📦 Installation
+
+```bash
+npm install idlix-resolver
+```
+
+Or run directly with `npx`:
+
+```bash
+npx idlix-resolver search "Spider-Man"
+```
+
+---
+
+## 🚀 Quick Start
+
+### 1. Programmatic API (TypeScript / ESM)
+
+```typescript
+import { IdlixClient, search, resolveMovie, resolveEpisode } from 'idlix-resolver';
+
+// 1. Search content
+const searchResults = await search('Spider-Man');
+console.log('Results:', searchResults.results);
+
+// 2. Resolve a movie by slug or ID
+const movieStream = await resolveMovie('sin-city-2005', {
+  onCountdown: (secondsRemaining) => {
+    console.log(`Gate countdown: ${secondsRemaining}s remaining...`);
+  }
+});
+
+console.log('Stream Playlist URL:', movieStream.playlistUrl);
+console.log('Indonesian Subtitle:', movieStream.subtitles.find(s => s.lang === 'id')?.path);
+
+// 3. Resolve a TV series episode
+const episodeStream = await resolveEpisode('visionquest-2026', 1, 1, {
+  onCountdown: (sec) => console.log(`Unlocking episode: ${sec}s...`)
+});
+console.log('Episode Stream:', episodeStream.playlistUrl);
+```
+
+---
+
+### 2. Command Line Interface (CLI)
+
+```bash
+# Search for movies or TV series
+npx idlix-resolver search "Inception"
+
+# Resolve a movie stream
+npx idlix-resolver resolve "sin-city-2005"
+
+# Resolve a specific TV series episode
+npx idlix-resolver episode "visionquest-2026" 1 1
+```
+
+---
+
+## 🧠 How It Works Under The Hood
+
+IDLIX protects its video streams using an internal architecture called **Pentos Protocol**:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant App as IdlixClient
+    participant IDLIX as z2.idlixku.com/api
+    participant Majorplay as e2e.majorplay.net (CDN)
+
+    App->>IDLIX: GET /api/movies/{slug}
+    IDLIX-->>App: Movie metadata & UUID
+    App->>IDLIX: GET /api/watch/play-info/movie/{id}
+    IDLIX-->>App: gateToken + unlockAt countdown + Set-Cookie: did=...
+    Note over App: Await gate cooldown timer (~15s)
+    App->>IDLIX: POST /api/watch/session/claim (gateToken + did cookie)
+    IDLIX-->>App: Pentos Claim JWT + redeemUrl
+    App->>Majorplay: POST /api/play ({ claim, mode: "browser" })
+    Majorplay-->>App: Master HLS Playlist & Indonesian Subtitles (.vtt)
+```
+
+`idlix-resolver` handles this entire sequence automatically with robust cookie and session preservation.
+
+---
+
+## 📋 Data Types
+
+```typescript
+interface ResolvedStream {
+  title: string;
+  videoId: string;
+  playlistUrl: string;
+  masterM3u8Content?: string;
+  expiresAt: number;
+  ttlSeconds: number;
+  subtitles: SubtitleTrack[];
+  headers: Record<string, string>;
+}
+
+interface SubtitleTrack {
+  lang: string;      // e.g. "id", "en"
+  label: string;     // e.g. "Indonesian", "English"
+  path: string;      // URL to .vtt file
+  isDefault?: boolean;
+}
+```
+
+---
+
+## 📄 License
+
+MIT © [Arief Muhammad Ammar](https://github.com/ariefmuhammadammar)
