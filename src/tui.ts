@@ -76,6 +76,11 @@ async function handleSearchFlow() {
     return;
   }
 
+  // 🚀 SMART ZERO-WAIT: Pre-warm gate in background while user is selecting!
+  results.slice(0, 3).forEach(item => {
+    client.prefetch(item.slug, item.contentType);
+  });
+
   const selectedItem = await p.select({
     message: 'Pilih film atau serial yang ingin ditonton:',
     options: results.map(item => ({

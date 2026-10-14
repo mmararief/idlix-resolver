@@ -9,12 +9,14 @@ import {
   ResolverOptions,
 } from './types.js';
 import { normalizeSubtitles, rewriteM3u8Urls } from './parser.js';
+import { globalCache } from './cache.js';
 
 export class IdlixClient {
   private client: Impit;
   private baseUrl: string;
   private cookieJar: Map<string, string> = new Map();
   private userAgent: string;
+  private inFlightRequests: Map<string, Promise<ResolvedStream>> = new Map();
 
   constructor(options: { baseUrl?: string; userAgent?: string } = {}) {
     this.baseUrl = (options.baseUrl || 'https://z2.idlixku.com').replace(/\/+$/, '');
@@ -124,17 +126,52 @@ export class IdlixClient {
    * Resolve movie stream and Indonesian subtitles
    */
   async resolveMovie(slugOrId: string, options: ResolverOptions = {}): Promise<ResolvedStream> {
-    let movieId = slugOrId;
-    let movieTitle = slugOrId;
-
-    // If it's a slug or path (contains letters/hyphens), look up movie ID first
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId)) {
-      const movie = await this.getMovie(slugOrId);
-      movieId = movie.id;
-      movieTitle = movie.title;
+    const cacheKey = `movie:${slugOrId}`;
+    const cached = globalCache.get(cacheKey);
+    if (cached) {
+      if (options.onCountdown) options.onCountdown(0);
+      return cached;
     }
 
-    return this.resolvePlayGate('movie', movieId, movieTitle, options);
+    if (this.inFlightRequests.has(cacheKey)) {
+      return this.inFlightRequests.get(cacheKey)!;
+    }
+
+    const task = (async () => {
+      let movieId = slugOrId;
+      let movieTitle = slugOrId;
+
+      // If it's a slug or path (contains letters/hyphens), look up movie ID first
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slugOrId)) {
+        const movie = await this.getMovie(slugOrId);
+        movieId = movie.id;
+        movieTitle = movie.title;
+      }
+
+      const stream = await this.resolvePlayGate('movie', movieId, movieTitle, options);
+      globalCache.set(cacheKey, stream);
+      globalCache.set(`movie:${movieId}`, stream);
+      return stream;
+    })().finally(() => {
+      this.inFlightRequests.delete(cacheKey);
+    });
+
+    this.inFlightRequests.set(cacheKey, task);
+    return task;
+  }
+
+  /**
+   * Pre-warm stream gate in background
+   */
+  prefetch(slugOrId: string, type: 'movie' | 'series' = 'movie', season = 1, episode = 1): void {
+    const key = type === 'movie' ? `movie:${slugOrId}` : `series:${slugOrId}:${season}:${episode}`;
+    if (globalCache.has(key) || this.inFlightRequests.has(key)) return;
+
+    if (type === 'movie') {
+      this.resolveMovie(slugOrId).catch(() => {});
+    } else {
+      this.resolveEpisode(slugOrId, season, episode).catch(() => {});
+    }
   }
 
   /**
@@ -146,26 +183,47 @@ export class IdlixClient {
     episodeNumber: number,
     options: ResolverOptions = {}
   ): Promise<ResolvedStream> {
-    let series = seriesSlugOrId;
-    let episodeId: string | undefined;
-    let episodeTitle = `S${seasonNumber}E${episodeNumber}`;
-
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seriesSlugOrId)) {
-      const detail = await this.getSeries(seriesSlugOrId);
-      const targetSeason = detail.seasons?.find(s => s.seasonNumber === seasonNumber);
-      const targetEp = targetSeason?.episodes?.find(e => e.episodeNumber === episodeNumber);
-      if (targetEp) {
-        episodeId = targetEp.id;
-        episodeTitle = `${detail.title} - S${seasonNumber}E${episodeNumber}`;
-      } else {
-        episodeId = detail.id;
-        episodeTitle = `${detail.title} - S${seasonNumber}E${episodeNumber}`;
-      }
-    } else {
-      episodeId = seriesSlugOrId;
+    const cacheKey = `series:${seriesSlugOrId}:${seasonNumber}:${episodeNumber}`;
+    const cached = globalCache.get(cacheKey);
+    if (cached) {
+      if (options.onCountdown) options.onCountdown(0);
+      return cached;
     }
 
-    return this.resolvePlayGate('series', episodeId, episodeTitle, options);
+    if (this.inFlightRequests.has(cacheKey)) {
+      return this.inFlightRequests.get(cacheKey)!;
+    }
+
+    const task = (async () => {
+      let series = seriesSlugOrId;
+      let episodeId: string | undefined;
+      let episodeTitle = `S${seasonNumber}E${episodeNumber}`;
+
+      if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(seriesSlugOrId)) {
+        const detail = await this.getSeries(seriesSlugOrId);
+        const targetSeason = detail.seasons?.find(s => s.seasonNumber === seasonNumber);
+        const targetEp = targetSeason?.episodes?.find(e => e.episodeNumber === episodeNumber);
+        if (targetEp) {
+          episodeId = targetEp.id;
+          episodeTitle = `${detail.title} - S${seasonNumber}E${episodeNumber}`;
+        } else {
+          episodeId = detail.id;
+          episodeTitle = `${detail.title} - S${seasonNumber}E${episodeNumber}`;
+        }
+      } else {
+        episodeId = seriesSlugOrId;
+      }
+
+      const stream = await this.resolvePlayGate('series', episodeId, episodeTitle, options);
+      globalCache.set(cacheKey, stream);
+      if (episodeId) globalCache.set(`series:${episodeId}:1:1`, stream);
+      return stream;
+    })().finally(() => {
+      this.inFlightRequests.delete(cacheKey);
+    });
+
+    this.inFlightRequests.set(cacheKey, task);
+    return task;
   }
 
   /**
