@@ -7,13 +7,16 @@
   "types": "dist/index.d.ts",
   "bin": {
     "idlix-resolver": "./dist/cli.js",
-    "idlix-tui": "./dist/tui.js"
+    "idlix-tui": "./dist/tui.js",
+    "idlix-api": "./dist/api.js"
   },
   "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "node dist/tui.js",
     "tui": "tsx src/tui.ts",
+    "api": "tsx src/api.ts",
+    "server": "tsx src/api.ts",
     "dev": "tsx src/index.ts",
     "test": "tsx example.ts",
     "cli": "tsx src/cli.ts"

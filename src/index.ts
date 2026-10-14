@@ -2,6 +2,7 @@ export { IdlixClient } from './client.js';
 export * from './types.js';
 export * from './parser.js';
 export * from './player.js';
+export * from './api.js';
 
 import { IdlixClient } from './client.js';
 

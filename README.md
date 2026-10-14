@@ -57,6 +57,45 @@ npx idlix-tui
 
 ---
 
+## 🌐 HTTP REST API Server
+
+You can run `idlix-resolver` as a standalone high-performance REST API microservice:
+
+```bash
+# Start the API server on default port (3000)
+npm run api
+
+# Or specify a custom port:
+npx idlix-resolver api --port 8080
+```
+
+### 📡 API Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/` | Interactive API documentation & live testing playground (HTML/JSON) |
+| `GET` | `/health` | Health check & uptime status |
+| `GET` | `/api/search?q={query}` | Search IDLIX catalog for movies & series |
+| `GET` | `/api/movie/{slug}` | Get movie metadata and UUID |
+| `GET` | `/api/series/{slug}` | Get TV series metadata, seasons, and episode lists |
+| `GET` | `/api/resolve/movie/{slug}` | Resolve movie M3U8 stream & subtitles |
+| `GET` | `/api/resolve/series/{slug}/{season}/{episode}` | Resolve series episode stream & subtitles |
+| `GET` | `/api/resolve?type={movie\|series}&slug={slug}` | Unified resolver endpoint |
+| `GET` | `/api/stream?url={targetUrl}` | **CORS-enabled HLS proxy** for web video players |
+| `GET` | `/api/subtitle?url={vttUrl}` | **CORS-enabled subtitle proxy** for subtitles |
+| `GET` | `/watch?type={movie\|series}&slug={slug}` | Built-in responsive HTML5 web player with Indonesian subtitles |
+
+### 💡 Embedded API Server in your code
+
+```typescript
+import { createApiServer } from 'idlix-resolver';
+
+const server = createApiServer({ port: 3000 });
+await server.listen();
+```
+
+---
+
 ## 🚀 Quick Start (CLI & API)
 
 ### 1. Programmatic API (TypeScript / ESM)

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { IdlixClient } from './client.js';
+import { createApiServer } from './api.js';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -13,11 +14,13 @@ Usage:
   npx idlix-resolver search <query>
   npx idlix-resolver resolve <movie-slug-or-id>
   npx idlix-resolver episode <series-slug-or-id> <season> <episode>
+  npx idlix-resolver api [--port 3000]
 
 Examples:
   npx idlix-resolver search "Spider-Man"
   npx idlix-resolver resolve "sin-city-2005"
   npx idlix-resolver episode "visionquest-2026" 1 1
+  npx idlix-resolver api --port 3000
 `);
     process.exit(0);
   }
@@ -25,7 +28,16 @@ Examples:
   const command = args[0];
 
   try {
-    if (command === 'search') {
+    if (command === 'api' || command === 'server') {
+      let port = parseInt(process.env.PORT || '3000', 10);
+      const portIdx = args.indexOf('--port');
+      if (portIdx !== -1 && args[portIdx + 1]) {
+        port = parseInt(args[portIdx + 1], 10);
+      }
+      const apiServer = createApiServer({ port, client });
+      await apiServer.listen();
+      return;
+    } else if (command === 'search') {
       const q = args.slice(1).join(' ');
       if (!q) {
         console.error('❌ Please provide a search query.');
