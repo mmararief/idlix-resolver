@@ -1,5 +1,4 @@
 export { IdlixClient } from './client.js';
-export { startTUI } from './tui.js';
 export * from './types.js';
 export * from './parser.js';
 export * from './player.js';

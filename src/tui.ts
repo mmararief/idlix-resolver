@@ -245,9 +245,8 @@ Player:    ${chosenPlayerId.toString().toUpperCase()}`,
 }
 
 // Direct execution
-if (import.meta.url === `file://${process.argv[1]}`) {
-  startTUI().catch(err => {
-    console.error(pc.red('\nFatal error:'), err);
-    process.exit(1);
-  });
-}
+startTUI().catch(err => {
+  console.error(pc.red('\nFatal error:'), err);
+  process.exit(1);
+});
+
