@@ -6,11 +6,14 @@
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
   "bin": {
-    "idlix-resolver": "./dist/cli.js"
+    "idlix-resolver": "./dist/cli.js",
+    "idlix-tui": "./dist/tui.js"
   },
   "type": "module",
   "scripts": {
     "build": "tsc",
+    "start": "node dist/tui.js",
+    "tui": "tsx src/tui.ts",
     "dev": "tsx src/index.ts",
     "test": "tsx example.ts",
     "cli": "tsx src/cli.ts"
@@ -28,7 +31,10 @@
   "author": "Arief Muhammad Ammar",
   "license": "MIT",
   "dependencies": {
-    "impit": "^0.8.0"
+    "@clack/prompts": "^1.8.1",
+    "impit": "^0.8.0",
+    "open": "^11.0.4",
+    "picocolors": "^1.1.1"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

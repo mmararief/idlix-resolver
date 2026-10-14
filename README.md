@@ -33,7 +33,31 @@ npx idlix-resolver search "Spider-Man"
 
 ---
 
-## 🚀 Quick Start
+## 📺 Interactive Terminal User Interface (TUI)
+
+Launch the interactive Terminal UI to search, choose episodes, and **watch movies/series directly**:
+
+```bash
+# In the project directory:
+npm start
+
+# Or using npx:
+npx idlix-tui
+```
+
+### 🎮 What the TUI Offers:
+- 🔍 **Interactive Search**: Browse titles and select with keyboard arrow keys.
+- 📺 **Series Season & Episode Selector**: Seamless navigation across TV shows.
+- ⏳ **Gate Countdown Display**: Real-time spinner showing seconds until playback unlocks.
+- 🚀 **One-Click Playback**: Directly launches:
+  - **FFplay** (fast, lightweight, auto-detected)
+  - **MPV** (with native subtitle track injection)
+  - **VLC Media Player**
+  - **Web Browser Player** (beautiful built-in HTML5 dark mode player with Hls.js)
+
+---
+
+## 🚀 Quick Start (CLI & API)
 
 ### 1. Programmatic API (TypeScript / ESM)
 
