@@ -9,7 +9,7 @@ async function main() {
 
   if (args.length === 0 || args.includes('-h') || args.includes('--help')) {
     console.log(`
-🎬 IDLIX Resolver CLI (z2.idlixku.com)
+🎬 IDLIX Resolver CLI (z2.idlixku.com) • by amayonaise (@mmararief)
 Usage:
   npx idlix-resolver search <query>
   npx idlix-resolver resolve <movie-slug-or-id>

@@ -538,7 +538,7 @@ function renderDocumentationHtml(serverOrigin: string): string {
     <header>
       <div class="badge">API v1.0 • ONLINE</div>
       <h1><span>IDLIX</span> Resolver API</h1>
-      <p class="lead">Fast, TLS-impersonated stream & Indonesian subtitle extractor for IDLIX with built-in CORS HLS proxying.</p>
+      <p class="lead">Fast, TLS-impersonated stream & Indonesian subtitle extractor for IDLIX with built-in CORS HLS proxying.<br><span style="color: #64748b; font-size: 0.9rem;">Created with ❤️ by <strong>amayonaise</strong> (<a href="https://github.com/mmararief" target="_blank" style="color: #38bdf8; text-decoration: none;">@mmararief</a>)</span></p>
     </header>
 
     <div class="tester">

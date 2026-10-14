@@ -10,20 +10,26 @@ const client = new IdlixClient();
 
 async function renderBanner() {
   console.clear();
-  const art = pc.red(`
+  const art =
+    pc.red(`
    ██╗██████╗ ██╗     ██╗██╗  ██╗
    ██║██╔══██╗██║     ██║╚██╗██╔╝
    ██║██║  ██║██║     ██║ ╚███╔╝ 
    ██║██║  ██║██║     ██║ ██╔██╗ 
    ██║██████╔╝███████╗██║██╔╝ ██╗
    ╚═╝╚═════╝ ╚══════╝╚═╝╚═╝  ╚═╝
-`) + pc.cyan(`   🍿 TERMINAL STREAMING & PLAYER (v1.0.0)\n   🇮🇩 Indonesian Subtitle Stream Resolver\n`);
-  console.log(pc.bold(art));
+`) +
+    pc.cyan(`   🍿 TERMINAL STREAMING & PLAYER (v1.0.0)\n`) +
+    pc.white(`   🇮🇩 Indonesian Subtitle Stream Resolver\n`) +
+    pc.magenta(`   ✨ Created by `) +
+    pc.bold(pc.yellow('amayonaise')) +
+    pc.dim(' (@mmararief)\n');
+  console.log(art);
 }
 
 export async function startTUI() {
   await renderBanner();
-  p.intro(pc.bgRed(pc.white(' IDLIX WATCH EXPERIENCE ')));
+  p.intro(pc.bgRed(pc.white(' IDLIX WATCH EXPERIENCE ')) + pc.dim(' • by amayonaise'));
 
   while (true) {
     const action = await p.select({
@@ -36,7 +42,7 @@ export async function startTUI() {
     });
 
     if (p.isCancel(action) || action === 'exit') {
-      p.outro(pc.yellow('Sampai jumpa lagi! Selamat menonton 🍿'));
+      p.outro(pc.yellow('Sampai jumpa lagi! Terima kasih telah menggunakan karya amayonaise 🍿'));
       process.exit(0);
     }
 
